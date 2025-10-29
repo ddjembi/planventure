@@ -37,6 +37,54 @@ jwt.init_app(app)
 # Import models after extensions are initialized
 from models import User
 
+# Import and register blueprints
+from routes.auth import auth_bp
+app.register_blueprint(auth_bp)
+
+# JWT callbacks
+@jwt.user_identity_loader
+def user_identity_lookup(user_id):
+    """Convert user object to user_id for token creation."""
+    return str(user_id)
+
+@jwt.user_lookup_loader
+def user_lookup_callback(_jwt_header, jwt_data):
+    """Load user from database when token is validated."""
+    identity = jwt_data["sub"]
+    return User.query.filter_by(id=int(identity)).first()
+
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    """Handle expired token errors."""
+    return jsonify({
+        "error": "token_expired",
+        "message": "The token has expired"
+    }), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    """Handle invalid token errors."""
+    return jsonify({
+        "error": "invalid_token",
+        "message": "Signature verification failed"
+    }), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    """Handle missing token errors."""
+    return jsonify({
+        "error": "authorization_required",
+        "message": "Request does not contain an access token"
+    }), 401
+
+@jwt.revoked_token_loader
+def revoked_token_callback(jwt_header, jwt_payload):
+    """Handle revoked token errors."""
+    return jsonify({
+        "error": "token_revoked",
+        "message": "The token has been revoked"
+    }), 401
+
 # Error handlers
 @app.errorhandler(404)
 def not_found(error):
